@@ -109,8 +109,8 @@ REGISTER_INTERNAL(ExternalSQLPlugin, "sql", "sql");
   auto type##ModuleRegistryItem = Registry::add<type>(registry, name)
 
 // Remove registry-helper macros from the SDK.
-#undef REGISTER
-#define REGISTER "Do not REGISTER in the osquery SDK"
+//#undef REGISTER
+//#define REGISTER "Do not REGISTER in the osquery SDK"
 #undef REGISTER_INTERNAL
 #define REGISTER_INTERNAL "Do not REGISTER_INTERNAL in the osquery SDK"
 #undef CREATE_REGISTRY
