@@ -72,7 +72,12 @@ public:
     {
         std::string broQuery = broker::to_string(broker::message(msg));
         broQuery = broQuery.substr(1,broQuery.size()-2);
-        return broQuery;
+        if(broQuery.substr(0,6)!= "SELECT")
+        {  
+            return "";
+        }
+        else
+            return broQuery;
     }
     
     ////////////////////////////////////////////////////////////////////////////
@@ -84,6 +89,8 @@ public:
         pollfd pfd{mq.fd(), POLLIN, 0};      
         int rv;
         std::string temp_query;
+        std::string out1;
+        std::string out2;
         std::string out;
         auto status = Status(0,"OK");
         QueryData test;
@@ -96,21 +103,28 @@ public:
                 for(auto& msg : mq.need_pop())
                 {
                     temp_query = brokerMessageExtractor(msg);
-                    std::cout<<"Query = "<<temp_query<<std::endl;
-                    test = brokerQuery(temp_query);
-                    for (auto& r : test)
+                    if(!temp_query.empty())
                     {
-                        for(pt iter = r.begin(); iter != r.end(); iter++)
+                        std::cout<<"Query = "<<temp_query<<std::endl;
+                        test = brokerQuery(temp_query);
+                        for (auto& r : test)
                         {
-                            std::cout << iter->first << ": "; 
-                            out += iter->first + ": ";
-                            std::cout << iter->second <<std::endl ;
-                            out += iter->second + "\n" ;
+                            for(pt iter = r.begin(); iter != r.end(); iter++)
+                            {
+                               // std::cout << iter->first << ": "; 
+                                out1 += iter->first + " | ";
+                               // std::cout << iter->second <<std::endl ;
+                                out2 += iter->second + " | " ;
+                            }
+                            out1 += "\n"; out2 +="\n";
+                            out = out1 + out2 ;
+                            std::cout << out ;
+                            usleep(500000);
+                            PC.send("Testing", broker::message{out});
+                            usleep(500000);
+                            out1=out2=out="\0";
+                            break;
                         }
-                        std::cout << out;
-                        usleep(500000);
-                        PC.send("Testing", broker::message{out});
-                        usleep(500000);
                     }
                   
                 }
@@ -208,3 +222,5 @@ int main(int argc, char* argv[]) {
   runner.shutdown();
   return 0;
 }
+
+
