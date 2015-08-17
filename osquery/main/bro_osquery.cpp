@@ -87,14 +87,14 @@ void *queryManager(void *in_query)
         if(diff_result.added.size() > 0)
         {
             usleep(500000);
-            PC.send("Testing", broker::message{"New Added data"});
+            PC.send("Testing", broker::message{"Data Added in ",*query," Table"});
             usleep(500000);
             print_query_result(diff_result.added);
         }
         if(diff_result.removed.size() > 0)
         {
             usleep(500000);
-            PC.send("Testing", broker::message{"Data Removed"});
+            PC.send("Testing", broker::message{"Data Removed From ",*query," Table"});
             usleep(500000);
             print_query_result(diff_result.removed);
         }
