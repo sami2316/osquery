@@ -21,17 +21,94 @@
 #include <osquery/logger.h>
 #include <osquery/registry.h>
 #include <osquery/sql.h>
-//#include <pthread.h>
+#include <pthread.h>
 
 
 
 
 using namespace osquery;
-
-broker::endpoint PC("VM");
-
 /*
- * 
+ * Global Variables
+ */
+const int size=5;
+broker::endpoint PC("VM");
+pthread_t query_thread[size];
+int rc[size];
+
+///////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////
+
+QueryData brokerQuery(const std::string& queryString)
+{
+    QueryData qd;
+    osquery::queryExternal(queryString, qd);
+
+
+    return qd;
+}
+    
+/*
+ * Thread Functions for Managing updated results
+ */
+void print_query_result(const QueryData& temp)
+{
+    typedef std::map<std::string, std::string>::const_iterator pt;
+    std::string out1,out2,out;
+    for (auto& r : temp)
+    {
+        for(pt iter = r.begin(); iter != r.end(); iter++)
+        {
+            out1 += iter->first + " | ";
+            out2 += iter->second + " | " ;
+        }
+        out1 += "\n"; out2 +="\n";
+        out = out1 + out2 ;
+        std::cout << out ;
+        usleep(500000);
+        PC.send("Testing", broker::message{out});
+        usleep(500000);
+        out1=out2=out="\0";
+    }
+}
+void *queryManager(void *in_query)
+{   
+    DiffResults diff_result; 
+    
+    QueryData result_1,result_2;
+    std::string* query = reinterpret_cast<std::string*>(in_query);
+    std::cout<<"Query = "<<*query<<std::endl;
+    result_1 = brokerQuery(*query);
+    print_query_result(result_1);
+    while(true)
+    {
+        usleep(5000000); //After each 5sec Daemon will query 
+        result_2 = brokerQuery(*query);
+        diff_result = osquery::diff(result_1,result_2);
+        if(diff_result.added.size() > 0)
+        {
+            usleep(500000);
+            PC.send("Testing", broker::message{"New Added data"});
+            usleep(500000);
+            print_query_result(diff_result.added);
+        }
+        if(diff_result.removed.size() > 0)
+        {
+            usleep(500000);
+            PC.send("Testing", broker::message{"Data Removed"});
+            usleep(500000);
+            print_query_result(diff_result.removed);
+        }
+        result_1 = result_2;
+    }
+    pthread_exit(NULL);
+}
+/*
+ End of Functions
+ */
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+/*
+ Osquery External Plugin Class 
  */
 class BrokerQueryPlugin: public ConfigPlugin
 {
@@ -84,16 +161,14 @@ public:
     ////////////////////////////////////////////////////////////////////////////
     Status brokerMessageQuery()
     {
+        int thread_count = 0;
         std::cout<<"In the Message Query Function\n";
         broker::message_queue mq("Testing", PC);
         pollfd pfd{mq.fd(), POLLIN, 0};      
         int rv;
-        std::string temp_query;
-        std::string out1;
-        std::string out2;
-        std::string out;
+        std::string inString;
+        std::string *temp_query;
         auto status = Status(0,"OK");
-        QueryData test;
         
         while(true)
         {
@@ -102,47 +177,21 @@ public:
             {
                 for(auto& msg : mq.need_pop())
                 {
-                    temp_query = brokerMessageExtractor(msg);
-                    if(!temp_query.empty())
+                    inString = brokerMessageExtractor(msg);
+                    if(!inString.empty() && thread_count < 5)
                     {
-                        std::cout<<"Query = "<<temp_query<<std::endl;
-                        test = brokerQuery(temp_query);
-                        for (auto& r : test)
+                        temp_query = new std::string(inString);
+                        rc[thread_count] = pthread_create(&query_thread[thread_count],NULL,queryManager,(void*)temp_query);
+                        if(rc[thread_count])
                         {
-                            for(pt iter = r.begin(); iter != r.end(); iter++)
-                            {
-                               // std::cout << iter->first << ": "; 
-                                out1 += iter->first + " | ";
-                               // std::cout << iter->second <<std::endl ;
-                                out2 += iter->second + " | " ;
-                            }
-                            out1 += "\n"; out2 +="\n";
-                            out = out1 + out2 ;
-                            std::cout << out ;
-                            usleep(500000);
-                            PC.send("Testing", broker::message{out});
-                            usleep(500000);
-                            out1=out2=out="\0";
-                            break;
+                            exit(-1);
                         }
+                        thread_count++;
                     }
-                  
                 }
+                  
             }
         }
-    }
-    
-    
-    ///////////////////////////////////////////////////////////////////////////
-    ///////////////////////////////////////////////////////////////////////////
-   
-    QueryData brokerQuery(const std::string& queryString)
-    {
-        QueryData qd;
-        osquery::queryExternal(queryString, qd);
-        
-                
-        return qd;
     }
     
     //////////////////////////////////////////////////////////////////////////
@@ -152,22 +201,6 @@ public:
             return Status(0,"OK");
         }
     //////////////////////////////////////////////////////////////////////
-      /* Status broker_osquery_init()
-        {
-            std::cout<<"In the broker_init() function"<<std::endl;
-            //BrokerQueryPlugin b;
-            auto status = Status(0,"OK");
-            status = brokerConnection();
-            if(status.ok())
-            {
-                brokerMessageQuery();
-            }
-            else
-            {
-                std::cout<<"Could not Connect";
-            }
-            return Status(0,"OK");
-        }*/
     
 };
 void *broker_osquery_init(void *threadid)
