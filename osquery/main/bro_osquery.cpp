@@ -50,24 +50,26 @@ QueryData brokerQuery(const std::string& queryString)
 /*
  * Thread Functions for Managing updated results
  */
-void print_query_result(const QueryData& temp)
+void print_query_result(const QueryData& temp, std::string& table_name, std::string update)
 {
     typedef std::map<std::string, std::string>::const_iterator pt;
     std::string out1,out2,out;
     for (auto& r : temp)
     {
+        out1 = "Name!Table!";
+        out2 = PC.name() + "!"+table_name+"!";
         for(pt iter = r.begin(); iter != r.end(); iter++)
         {
-            out1 += iter->first + " | ";
-            out2 += iter->second + " | " ;
+            out1 += iter->first + "!";
+            out2 += iter->second + "!" ;
         }
-        out1 += "\n"; out2 +="\n";
-        out = out1 + out2 ;
+        out2 +=update + "!\n";
+        out = out1 + "Update!" + "\n" + out2;
         std::cout << out ;
         usleep(500000);
-        PC.send("Testing", broker::message{out});
+        PC.send("Testing", broker::message{out2});
         usleep(500000);
-        out1=out2=out="\0";
+        out1=out2=out="";
     }
 }
 void *queryManager(void *in_query)
@@ -77,8 +79,15 @@ void *queryManager(void *in_query)
     QueryData result_1,result_2;
     std::string* query = reinterpret_cast<std::string*>(in_query);
     std::cout<<"Query = "<<*query<<std::endl;
+    ///////////////////////////////////////////////////////////////////////////
+    std::string s= *query;
+    std::string f = "FROM";
+    int s_location = s.find(f);
+    int e_location = s.find(" ",s_location+5);
+    std::string table=s.substr(s_location + 5,e_location);
+    ///////////////////////////////////////////////////////////////////////////
     result_1 = brokerQuery(*query);
-    print_query_result(result_1);
+    print_query_result(result_1,table,"Added");
     while(true)
     {
         usleep(5000000); //After each 5sec Daemon will query 
@@ -87,16 +96,16 @@ void *queryManager(void *in_query)
         if(diff_result.added.size() > 0)
         {
             usleep(500000);
-            PC.send("Testing", broker::message{"Data Added in ",*query," Table"});
+            PC.send("Testing", broker::message{"Data Added: "});
             usleep(500000);
-            print_query_result(diff_result.added);
+            print_query_result(diff_result.added,table,"Added");
         }
         if(diff_result.removed.size() > 0)
         {
             usleep(500000);
-            PC.send("Testing", broker::message{"Data Removed From ",*query," Table"});
+            PC.send("Testing", broker::message{"Data Removed: "});
             usleep(500000);
-            print_query_result(diff_result.removed);
+            print_query_result(diff_result.removed,table,"Removed");
         }
         result_1 = result_2;
     }
@@ -247,12 +256,12 @@ int main(int argc, char* argv[]) {
     LOG(ERROR) << status.getMessage();
   }
   
-  /*BrokerQueryPlugin b;
-  b.genConfig();*/
+  
     
   std::cout<<"Shutting downn extension"<<std::endl;
   // Finally shutdown.
   runner.shutdown();
+              
   return 0;
 }
 
