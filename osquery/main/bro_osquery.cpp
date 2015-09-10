@@ -1,262 +1,103 @@
 /* 
- * File:   main.cpp
- * Author: chenone2316
+ *  Copyright (c) 2015, nexGIN, RC.
+ *  All rights reserved.
+ * 
+ *  This source code is licensed under the BSD-style license found in the
+ *  LICENSE file in the root directory of this source tree. An additional grant
+ *  of patent rights can be found in the PATENTS file in the same directory.
  *
- * Created on June 1, 2015, 1:46 PM
  */
 
 
-#include <broker/broker.hh>
-#include <broker/endpoint.hh>
-#include <broker/message_queue.hh>
-#include <osquery/sdk.h>
-#include <poll.h>
+
+#include <string>
 #include <iostream>
-#include <unistd.h>
-#include <iostream>
-#include <sstream>
-#include <osquery/filesystem.h>
 #include <osquery/events.h>
-#include <osquery/filesystem.h>
-#include <osquery/logger.h>
-#include <osquery/registry.h>
 #include <osquery/sql.h>
-#include <pthread.h>
+#include <osquery/sdk.h>
+#include <osquery/registry.h>
+#include <sstream>
+#include <csignal>
+#include "BrokerConnectionManager.h"
+#include "BrokerQueryManager.h"
+#include "BrokerQueryPlugin.h"
+#include "utility.h"
 
 
 
-
-using namespace osquery;
-/*
- * Global Variables
- */
-const int size=5;
-broker::endpoint PC("VM");
-pthread_t query_thread[size];
-int rc[size];
-
-///////////////////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////
-
-QueryData brokerQuery(const std::string& queryString)
-{
-    QueryData qd;
-    osquery::queryExternal(queryString, qd);
+// Note 1: Use REGISTER_EXTERNAL to define your plugin
+REGISTER_EXTERNAL(BrokerQueryManagerPlugin, "config", "brokerQueryManager")
 
 
-    return qd;
-}
-    
-/*
- * Thread Functions for Managing updated results
- */
-void print_query_result(const QueryData& temp, std::string& table_name, std::string update)
-{
-    typedef std::map<std::string, std::string>::const_iterator pt;
-    std::string out1,out2,out;
-    for (auto& r : temp)
-    {
-        out1 = "Name!Table!";
-        out2 = PC.name() + "!"+table_name+"!";
-        for(pt iter = r.begin(); iter != r.end(); iter++)
-        {
-            out1 += iter->first + "!";
-            out2 += iter->second + "!" ;
-        }
-        out2 +=update + "!\n";
-        out = out1 + "Update!" + "\n" + out2;
-        std::cout << out ;
-        usleep(500000);
-        PC.send("Testing", broker::message{out2});
-        usleep(500000);
-        out1=out2=out="";
-    }
-}
-void *queryManager(void *in_query)
-{   
-    DiffResults diff_result; 
-    
-    QueryData result_1,result_2;
-    std::string* query = reinterpret_cast<std::string*>(in_query);
-    std::cout<<"Query = "<<*query<<std::endl;
-    ///////////////////////////////////////////////////////////////////////////
-    std::string s= *query;
-    std::string f = "FROM";
-    int s_location = s.find(f);
-    int e_location = s.find(" ",s_location+5);
-    std::string table=s.substr(s_location + 5,e_location);
-    ///////////////////////////////////////////////////////////////////////////
-    result_1 = brokerQuery(*query);
-    print_query_result(result_1,table,"Added");
-    while(true)
-    {
-        usleep(5000000); //After each 5sec Daemon will query 
-        result_2 = brokerQuery(*query);
-        diff_result = osquery::diff(result_1,result_2);
-        if(diff_result.added.size() > 0)
-        {
-            usleep(500000);
-            PC.send("Testing", broker::message{"Data Added: "});
-            usleep(500000);
-            print_query_result(diff_result.added,table,"Added");
-        }
-        if(diff_result.removed.size() > 0)
-        {
-            usleep(500000);
-            PC.send("Testing", broker::message{"Data Removed: "});
-            usleep(500000);
-            print_query_result(diff_result.removed,table,"Removed");
-        }
-        result_1 = result_2;
-    }
-    pthread_exit(NULL);
-}
-/*
- End of Functions
- */
-///////////////////////////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////////////////////////
-/*
- Osquery External Plugin Class 
- */
-class BrokerQueryPlugin: public ConfigPlugin
-{
-private:
-    typedef std::map<std::string, std::string>::const_iterator pt;
-    QueryData bQresult;
-public:
-    ////////////////////////////////////////////////////////////////////////////
-    //////////////////broker connection/////////////////////////////////////////
-    Status brokerConnection()
-    {
-        std::cout<<"In the broker Connection\n";
-        auto status = Status(0,"OK");
-        broker::init();
-        PC.peer("192.168.1.187",9999);
-        auto conn_status = PC.outgoing_connection_status().need_pop();
-        for(auto cs: conn_status)
-        {
-            if(cs.status == broker::outgoing_connection_status::tag::established)
-            {
-                std::cout<<"Connection Established"<<std::endl;
-                break;
-            }
-            else
-            {
-                std::cout<<"Error: Connection Failed"<<std::endl;
-                status = Status(-1,"Not Connected");
-            }
-        }
-        return status;
-    }
-    ////////////////////////////////////////////////////////////////////////////
-    
-   
-    ///////////////////////////////////////////////////////////////////////////
-    ///////////////////////////////////////////////////////////////////////////
-    std::string brokerMessageExtractor(const broker::message &msg)
-    {
-        std::string broQuery = broker::to_string(broker::message(msg));
-        broQuery = broQuery.substr(1,broQuery.size()-2);
-        if(broQuery.substr(0,6)!= "SELECT")
-        {  
-            return "";
-        }
-        else
-            return broQuery;
-    }
-    
-    ////////////////////////////////////////////////////////////////////////////
-    ////////////////////////////////////////////////////////////////////////////
-    Status brokerMessageQuery()
-    {
-        int thread_count = 0;
-        std::cout<<"In the Message Query Function\n";
-        broker::message_queue mq("Testing", PC);
-        pollfd pfd{mq.fd(), POLLIN, 0};      
-        int rv;
-        std::string inString;
-        std::string *temp_query;
-        auto status = Status(0,"OK");
-        
-        while(true)
-        {
-            rv = poll(&pfd,1,10000);
-            if(!(rv== -1) && !(rv==0))
-            {
-                for(auto& msg : mq.need_pop())
-                {
-                    inString = brokerMessageExtractor(msg);
-                    if(!inString.empty() && thread_count < 5)
-                    {
-                        temp_query = new std::string(inString);
-                        rc[thread_count] = pthread_create(&query_thread[thread_count],NULL,queryManager,(void*)temp_query);
-                        if(rc[thread_count])
-                        {
-                            exit(-1);
-                        }
-                        thread_count++;
-                    }
-                }
-                  
-            }
-        }
-    }
-    
-    //////////////////////////////////////////////////////////////////////////
-    //*************************************************************************
-        Status genConfig(std::map<std::string,std::string>& config)
-        {
-            return Status(0,"OK");
-        }
-    //////////////////////////////////////////////////////////////////////
-    
-};
-void *broker_osquery_init(void *threadid)
-{
-    std::cout<<"In the broker_init() function"<<std::endl;
-    BrokerQueryPlugin b;
-    auto status = Status(0,"OK");
-    status = b.brokerConnection();
-    while(!status.ok())
-    {
-        b.brokerConnection();
-    }
-    b.brokerMessageQuery();
-    pthread_exit(NULL);
-}
 
-//////////////////////////////////////////////////
-
-// Note 3: Use REGISTER_EXTERNAL to define your plugin
-REGISTER_EXTERNAL(BrokerQueryPlugin, "config", "brokerQuery")
-
+// main runner
 int main(int argc, char* argv[]) {
     
-    pthread_t broker_thread;
-    int rc; long t=0;
-    std::cout<<"Starting the program"<<std::endl;
-    BrokerQueryPlugin b;
-    //b.broker_osquery_init();
-    rc = pthread_create(&broker_thread, NULL, broker_osquery_init, (void*)t);
-    if(rc)
-    {
-        std::cout<< "Error in pthread_create(): " <<rc <<std::endl;
-        exit(-1);                                       
-    }
    
-    
-  // Note 4: Start logging, threads, etc.
+  // Connection Manager class pointer
+  BrokerConnectionManager* BCM;
+  // to store query functions return value and use it for comparison purpose
+  bool processResponse;
+  //FileReader Class Object
+  FileReader fileresponse;
+  //SignalHandler Object to trace kill signal
+  SignalHandler signalHandler;
+  
+ // Note 2: Start logging, threads, etc.
   osquery::Initializer runner(argc, argv, OSQUERY_EXTENSION);
   std::cout<<"Initialized OSquery"<<std::endl;
   
-  // Note 5: Connect to osqueryi or osqueryd.
-  auto status = startExtension("brokerQuery", "0.0.1");
-  if (!status.ok()) {
-    LOG(ERROR) << status.getMessage();
-  }
   
   
+    //Reads HostName, broker_topic and broker_port form broker.ini file
+    int fileResponse = fileresponse.read();
+    // if reading is successful
+    if(fileResponse == 0)
+    {
+        // then make a broker connection manager object
+        BCM = new BrokerConnectionManager(fileresponse.getHostName(),
+                fileresponse.getBrokerTopic(),
+                std::atoi(fileresponse.getBrokerConnectionPort().c_str()));
+
+        try
+        {
+            // try setting up Signal Handler for kill signal
+            signalHandler.setupSignalHandler();
+            do
+            {
+                processResponse = false;
+                // listen port 9999 until connection is established
+                BCM->listenForBrokerConnection();
+                // When connection is established then Process queries
+                processResponse = BCM->getAndProcessQuery();
+                // if query processing is successful
+                if(processResponse)
+                {   
+                    /*then Track changes and send response to Master until 
+                     *connection is alive and no kill signal is received
+                     */
+                    while(BCM->isConnectionAlive() &&
+                            !signalHandler.gotExitSignal())
+                    {
+                        BCM->trackChangeAndSendResponseToMaster();
+                    }
+                    // if connection is down then reInitialize all query vectors
+                    BCM->getQueryManagerPointer()->ReInitializeVectors();
+                    //BrokerConnectionManager::init();   
+                }
+                //run untill kill signal is received
+            } while(!signalHandler.gotExitSignal());
+        }
+        // catches exception thrown at kill signal setup time
+        catch(SignalException& e)
+        {
+            std::cerr << "SignalException: " <<e.what() <<std::endl;
+        }
+        // delete BrokerConnectionManger object 
+        delete BCM;
+    }
+    
+      
     
   std::cout<<"Shutting downn extension"<<std::endl;
   // Finally shutdown.
@@ -264,5 +105,3 @@ int main(int argc, char* argv[]) {
               
   return 0;
 }
-
-
