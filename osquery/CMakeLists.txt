@@ -204,16 +204,17 @@ if(NOT DEFINED ENV{SKIP_TESTS})
     SET_OSQUERY_COMPILE(run "${CXX_COMPILE_FLAGS}")
     set_target_properties(run PROPERTIES OUTPUT_NAME run)
     # bro_osquery Integration program file
-    add_executable(bro_osquery main/bro_osquery.cpp)
+    add_executable(bro_osquery "main/bro_osquery.cpp" "main/utility.cpp" 
+	"main/BrokerConnectionManager.cpp" "main/BrokerQueryManager.cpp" "main/BrokerQueryPlugin.cpp")
     TARGET_OSQUERY_LINK_WHOLE(bro_osquery libosquery)
     TARGET_OSQUERY_LINK_WHOLE(bro_osquery libosquery_additional)
     SET_OSQUERY_COMPILE(bro_osquery "${CXX_COMPILE_FLAGS}")
-    set_target_properties(bro_osquery PROPERTIES OUTPUT_NAME bro_osquery)
+    set_target_properties(bro_osquery PROPERTIES OUTPUT_NAME BrokerQueryManagerPlugin.ext)
   endif()
 
   # Build the example extension with the SDK.
   ADD_OSQUERY_EXTENSION(example_extension examples/example_extension.cpp)
-  ADD_OSQUERY_EXTENSION(BrokerQueryPlugin main/bro_osquery.cpp)
+ 
 
   # Build the example extension module with the SDK.
   ADD_OSQUERY_MODULE(modexample examples/example_module.cpp)
