@@ -1,5 +1,6 @@
 /* 
- *  Copyright (c) 2015, nexGIN, RC.
+ *  Copyright (c) 2015, Next Generation Intelligent Networks (nextGIN), RC.
+ *  Institute of Space Technology
  *  All rights reserved.
  * 
  *  This source code is licensed under the BSD-style license found in the
@@ -37,6 +38,8 @@ struct input_query
     std::string event_name;
     //SQL query in which Bro is interested 
     std::string query;
+    // flag to send initial dump, default is false
+    bool flag;
 };
 
 /**
@@ -80,14 +83,10 @@ private:
     DiffResults diff_result;
     //reference to localhost 
     broker::endpoint* ptlocalhost;
-    //pointer to Global message queue object to read broker::messages
+    //pointer to message queue object to read broker::messages
     broker::message_queue* ptmq;
-    
-public:
-  
     // vector of query_update
     std::vector<query_update> out_query_vector;
-
     //vector of input_query
     std::vector<input_query> in_query_vector;
     
@@ -105,15 +104,16 @@ public:
      * @brief default constructor
      * 
      * @param lhost A pointer to local host passed form BrokerConnectionManager
-     * @param mq A pointer to message queue used for reading broker Messages
+     * @param mq A pointer to message queue used for reading broker messages
      * @param btp Pointer to broker topic read from file
      * 
      */ 
-    BrokerQueryManager(broker::endpoint* lhost,broker::message_queue* mq,
+    BrokerQueryManager(broker::endpoint* lhost,
+            broker::message_queue* mq,
             std::string* btp);
     
     /**    
-     *  @brief Extracts queries form Broker Messages 
+     *  @brief Extracts queries form Broker messages 
      * 
      *  Reads broker queue to extract broker message in event format and then 
      *  extracts SQL query from broker message.
@@ -132,7 +132,7 @@ public:
     bool getEventsFromBrokerMessage();
     
     /**    
-     *  @brief Extracts query columns from Query 
+     *  @brief Extracts query columns from query 
      * 
      *  Builds column structure by extracting column name form query string.
      *  
@@ -159,8 +159,26 @@ public:
     void queriesUpdateTrackingHandler();
     
     
+    /**
+     *  @brief Returns SQL query results in QueryData structure
+     * 
+     *  @param queryString SQL formated string to get host-level information
+     *
+     *  @return Query results in the form of osquery::QueryData
+     */ 
+    QueryData getQueryResult(const std::string& queryString);
+    
+    /**    
+     *  @brief Calculates difference in query results; if there is any update
+     *  Row added or removed then it triggers sendUpdateEventToMaster().
+     * 
+     *  @param iterator to indicate query for which we need to calculate
+     *  difference.
+     */
+    void diffResultsAndEventTriger(int& i);
+    
    /**    
-    *  @brief Sends update response to Master
+    *  @brief Sends update response to master
     *
     * @param temp QueryData that holds update information whether added
     *  or removed
@@ -169,6 +187,18 @@ public:
     */
     void sendUpdateEventToMaster(const QueryData& temp, std::string& table_name,
         int& iterator);
+    
+    /**
+    * @brief Extracts event name and SQL query form Broker Message
+    * 
+    * Trims, Extracts and formulate input_query structure from broker Message
+    * 
+    * @param msg broker::message received in event form
+    *
+    * @return input_query structure containing event and SQL query
+    *
+    */
+    input_query brokerMessageExtractor(const broker::message& msg);
     
     /**    
      * @brief Checks whether string contains all digits or not
@@ -193,38 +223,7 @@ public:
      *  @return returns ture if resources are freed nicely.
      */
     bool ReInitializeVectors();
-    
-    /**    
-     *  @brief Calculates difference in query results; if there is any update
-     *  Row added or removed then it triggers sendUpdateEventToMaster().
-     * 
-     *  @param iterator to indicate query for which we need to calculate
-     *  difference.
-     */
-    void diffResultsAndEventTriger(int& i);
-       
-    
-    /**
-     *  @brief Returns SQL query results in QueryData structure
-     * 
-     *  @param queryString SQL formated string to get host-level information
-     *
-     *  @return Query results in the form of osquery::QueryData
-     */ 
-    QueryData getQueryResult(const std::string& queryString);
-       
-     
-    /**
-    * @brief Extracts event name and SQL query form Broker Message
-    * 
-    * Trims, Extracts and formulate input_query structure from broker Message
-    * 
-    * @param msg broker::message received in event form
-    *
-    * @return input_query structure containing event and SQL query
-    *
-    */
-    input_query brokerMessageExtractor(const broker::message& msg);
+             
     
     /**    
      *  @brief Returns local host IP 
@@ -234,6 +233,7 @@ public:
      *  @return the local host IP in std::string form
      */
     std::string getLocalHostIp();
+    
 };
 
 
