@@ -1,5 +1,6 @@
 /* 
- *  Copyright (c) 2015, nexGIN, RC.
+ *  Copyright (c) 2015, Next Generation Intelligent Networks (nextGIN), RC.
+ *  Institute of Space Technology
  *  All rights reserved.
  * 
  *  This source code is licensed under the BSD-style license found in the
@@ -25,7 +26,7 @@
 
 
 
-// Note 1: Use REGISTER_EXTERNAL to define your plugin
+// :osquery::REGISTER_EXTERNAL to define BrokerQueryManagerPlugin 
 REGISTER_EXTERNAL(BrokerQueryManagerPlugin, "config", "brokerQueryManager")
 
 
@@ -34,74 +35,74 @@ REGISTER_EXTERNAL(BrokerQueryManagerPlugin, "config", "brokerQueryManager")
 int main(int argc, char* argv[]) {
     
    
-  // Connection Manager class pointer
-  BrokerConnectionManager* BCM;
-  // to store query functions return value and use it for comparison purpose
+  // BrokerConnectionManager class pointer
+  BrokerConnectionManager* ptBCM;
+  // to store  the return values of BrokerQueryManager functions and
+  // use it for comparison purpose
   bool processResponse;
   //FileReader Class Object
-  FileReader fileresponse;
-  //SignalHandler Object to trace kill signal
+  FileReader fileReader;
+  //SignalHandler object to trace kill signal
   SignalHandler signalHandler;
   
- // Note 2: Start logging, threads, etc.
+ //osquery::runner start logging, threads, etc. for our extension
   osquery::Initializer runner(argc, argv, OSQUERY_EXTENSION);
   std::cout<<"Initialized OSquery"<<std::endl;
   
   
   
-    //Reads HostName, broker_topic and broker_port form broker.ini file
-    int fileResponse = fileresponse.read();
-    // if reading is successful
-    if(fileResponse == 0)
-    {
-        // then make a broker connection manager object
-        BCM = new BrokerConnectionManager(fileresponse.getHostName(),
-                fileresponse.getBrokerTopic(),
-                std::atoi(fileresponse.getBrokerConnectionPort().c_str()));
+//Reads hostName, broker_topic and broker_port form broker.ini file
+int fileResponse = fileReader.read();
+// if reading is successful
+if(fileResponse == 0)
+{
+    // then make a broker connection manager object
+    ptBCM = new BrokerConnectionManager(fileReader.getHostName(),
+            fileReader.getBrokerTopic(),
+            std::atoi(fileReader.getBrokerConnectionPort().c_str()));
 
-        try
+    try
+    {
+        // try setting up signal handler for kill signal
+        signalHandler.setupSignalHandler();
+        do
         {
-            // try setting up Signal Handler for kill signal
-            signalHandler.setupSignalHandler();
-            do
-            {
-                processResponse = false;
-                // listen port 9999 until connection is established
-                BCM->listenForBrokerConnection();
-                // When connection is established then Process queries
-                processResponse = BCM->getAndProcessQuery();
-                // if query processing is successful
-                if(processResponse)
-                {   
-                    /*then Track changes and send response to Master until 
-                     *connection is alive and no kill signal is received
-                     */
-                    while(BCM->isConnectionAlive() &&
-                            !signalHandler.gotExitSignal())
-                    {
-                        BCM->trackChangeAndSendResponseToMaster();
-                    }
-                    // if connection is down then reInitialize all query vectors
-                    BCM->getQueryManagerPointer()->ReInitializeVectors();
-                    //BrokerConnectionManager::init();   
+            processResponse = false;
+            // listen port until connection is established
+            ptBCM->listenForBrokerConnection();
+            // When connection is established then process queries
+            processResponse = ptBCM->getAndProcessQuery();
+            // if query processing is successful
+            if(processResponse)
+            {   
+                /*then Track changes and send response to master until 
+                 *connection is alive and no kill signal is received
+                 */
+                while(ptBCM->isConnectionAlive() &&
+                        !signalHandler.gotExitSignal())
+                {
+                    ptBCM->trackResponseChangesAndSendResponseToMaster();
                 }
-                //run untill kill signal is received
-            } while(!signalHandler.gotExitSignal());
-        }
-        // catches exception thrown at kill signal setup time
-        catch(SignalException& e)
-        {
-            std::cerr << "SignalException: " <<e.what() <<std::endl;
-        }
-        // delete BrokerConnectionManger object 
-        delete BCM;
+                // if connection is down then reinitialize all query vectors
+                ptBCM->getQueryManagerPointer()->ReInitializeVectors();
+            }
+            //run until kill signal is received
+        } while(!signalHandler.gotExitSignal());
     }
+    // catches exception thrown at kill signal setup time
+    catch(SignalException& e)
+    {
+        std::cerr << "SignalException: " <<e.what() <<std::endl;
+    }
+    // delete BrokerConnectionManger object 
+    delete ptBCM;
+}
     
-      
+     
     
-  std::cout<<"Shutting downn extension"<<std::endl;
-  // Finally shutdown.
-  runner.shutdown();
+std::cout<<"\nShutting down extension"<<std::endl;
+// Finally shutdown.
+runner.shutdown();
               
-  return 0;
+return 0;
 }
