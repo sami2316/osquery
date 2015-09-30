@@ -1,5 +1,6 @@
 /* 
- *  Copyright (c) 2015, nexGIN, RC.
+ *  Copyright (c) 2015, Next Generation Intelligent Networks (nextGIN), RC.
+ *  Institute of Space Technology
  *  All rights reserved.
  * 
  *  This source code is licensed under the BSD-style license found in the
@@ -20,11 +21,12 @@ private:
     int b_port;
     // connection state tracking variable
     bool connected;
-    // BrokerQueryManager pointer for query management
+    // BrokerQueryManager pointer for processing query and generating
+    // its response
     BrokerQueryManager* qm;
    //pointer broker endpoint as local host
     broker::endpoint* ptlocalhost;
-    //pointer to Global message queue object to read broker::messages
+    //pointer to message queue object to read broker::messages
     broker::message_queue* ptmq;
     //pointer to pooling for message queue
     pollfd* ptpfd;
@@ -32,12 +34,12 @@ public:
     /**
      *  @brief Class constructor
      *  
-     *  @param HostName Local host name
+     *  @param hostName Local host name
      *  @param btp Broker topic used to send messages to interested peers
      *  @param bport Broker connection port used while listening
      * 
      */ 
-     BrokerConnectionManager(std::string HostName,std::string btp,int bport);
+     BrokerConnectionManager(std::string hostName,std::string btp,int bport);
      
     //Class Destructor to delete pointed objects
     ~BrokerConnectionManager();
@@ -56,9 +58,9 @@ public:
     
     /**
      *  @brief Reads broker messages from queue and then Extracts messages 
-     *  event name and  query string. Processes each query into query columns to
-     *  map query columns with event arguments at the update event generation
-     *  time.
+     *  event name and  query string. Processes each query to corresponding
+     *  query columns that will be used to map query columns with event
+     *  arguments at the update event generation time.
      * 
      *  @return Returns ture if there is successful get and extraction.
      */ 
@@ -68,7 +70,7 @@ public:
      *  @brief When connection is established and queries are processed then
      *  this function is called to process query updates. 
      */ 
-    void trackChangeAndSendResponseToMaster();
+    void trackResponseChangesAndSendResponseToMaster();
     
     /**    
      *  @brief Returns true if broker Connection is Alive
