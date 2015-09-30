@@ -1,5 +1,6 @@
 /* 
- *  Copyright (c) 2015, nexGIN, RC.
+ *  Copyright (c) 2015, Next Generation Intelligent Networks (nextGIN), RC.
+ *  Institute of Space Technology
  *  All rights reserved.
  * 
  *  This source code is licensed under the BSD-style license found in the
@@ -24,69 +25,16 @@ BrokerQueryManager::BrokerQueryManager(broker::endpoint* lhost,
     this->ptmq = mq;
 }
 
-bool BrokerQueryManager::isQueryColumnInteger(const std::string& str)
-{
-    if(str.empty())
-	{return false;}
-    // Iterates over all elements of string to check whether all number?
-    return std::all_of(str.begin(),str.end(), ::isdigit);
-}
-
-std::string BrokerQueryManager::getLocalHostIp()
-{
-    //Map::iterator to iterator over Osquery::Row columns
-    typedef std::map<std::string, std::string>::const_reverse_iterator pt;
-    
-    //Using osquery; queries interface_addresses table
-    QueryData ip_table = 
-            getQueryResult("SELECT address FROM interface_addresses");
-    // loop over each interface Row
-    for(auto& r: ip_table)
-    {
-        for(pt iter = r.rbegin(); iter != r.rend(); iter++)
-        {
-            if((iter->second).size()>9 && (iter->second).size()<16)
-            {
-                return iter->second;
-            }
-        }
-        std::cout<<std::endl;
-    }
-    return "";
-}
-
-input_query BrokerQueryManager::brokerMessageExtractor(
-const broker::message& msg)
-{
-    input_query temp;
-    std::string broQuery = broker::to_string(broker::message(msg));
-    
-    // will remove [] form start and end of string
-    broQuery = broQuery.substr(1,broQuery.size()-2);
-    int loc = broQuery.find(',');
-    
-    //returns the event part
-    temp.event_name = broQuery.substr(0,loc);
-    //returns the query  string
-    temp.query = broQuery.substr(loc+2,broQuery.size());
-    
-    //will throw an exception if query is not a proper SQL string
-    if(temp.query.substr(0,6)!= "SELECT")
-    {  
-        throw(std::string("Please send Proper formated query"));
-    }
-    else
-        return temp;
-}
-
 bool BrokerQueryManager::getQueriesFromBrokerMessage(pollfd* pfd,
         bool &connected)
 {
+    // poll message queue
     int rv = poll(pfd,1,2000);
+    // if pooling response is not of time out or queue is empty
     if(!(rv== -1) && !(rv==0))
     {
         //loop for all messages in queue
-        for(auto& msg: this->ptmq->need_pop())
+        for(auto& msg : this->ptmq->need_pop())
         {
             //temporary variable for input queries
             input_query inString;
@@ -104,13 +52,17 @@ bool BrokerQueryManager::getQueriesFromBrokerMessage(pollfd* pfd,
             //set connection flag to false
             connected = false;
             }
-            in_query_vector.emplace_back(inString);
+            if(!in_query_vector.empty())
+            {
+                if(in_query_vector[0].event_name == inString.event_name)
+                    break;
+            }
+            in_query_vector.emplace_back(inString);    
         }
         return true;
     }
     return false;
 }
-
 
 bool BrokerQueryManager::getEventsFromBrokerMessage()
 {
@@ -159,45 +111,43 @@ bool BrokerQueryManager::queryDataResultVectorInit()
     { 
         query_update temp;
         temp.current_results = getQueryResult(in_query_vector[i].query);
+        if(in_query_vector[i].flag)
+        {
+           sendUpdateEventToMaster(temp.current_results,
+                in_query_vector.at(i).event_name,i); 
+        }
         temp.old_results = temp.current_results;
         temp.current_results.clear();
         temp.current_results = getQueryResult(in_query_vector[i].query);
         out_query_vector.emplace_back(temp);
         this->first_time = false;
     }
+    std::cout<<"Sending Updates..."<<std::endl;
     return (!out_query_vector.empty()) ? true: false;
 }
 
-bool BrokerQueryManager::ReInitializeVectors()
+void BrokerQueryManager::queriesUpdateTrackingHandler()
 {
-    first_time = true;
-    if(!out_query_vector.empty())
+    
+    for(int i=0;i<out_query_vector.size();i++)
     {
-        out_query_vector.clear();
+        BrokerQueryManager::diffResultsAndEventTriger(i);
     }
-    if(!event.empty())
-    {
-        event.clear();
-    }
-    if(!qc.empty())
-    {
-        qc.clear();
-    }
-    if(!qmap.empty())
-    {
-        qmap.clear();
-    }
-    if(!in_query_vector.empty())
-    {
-        in_query_vector.clear();
-    }
-  return (in_query_vector.empty()) ? true :false;  
+    
+}
+
+QueryData BrokerQueryManager::getQueryResult(const std::string& queryString)
+{
+    QueryData qd;
+    osquery::queryExternal(queryString, qd);
+    
+    return qd;
 }
 
 void BrokerQueryManager::diffResultsAndEventTriger(int& i)
 {
-    //After each 1sec Daemon will query
-    usleep(1000000); //After each 5sec Daemon will query
+    //After each 1sec daemon will query
+    usleep(1000000); 
     out_query_vector[i].current_results =
             getQueryResult(in_query_vector[i].query);
     
@@ -266,21 +216,88 @@ void BrokerQueryManager::sendUpdateEventToMaster(const QueryData& temp,
      this->ptmq->want_pop().clear();
 }
 
-
-void BrokerQueryManager::queriesUpdateTrackingHandler()
+input_query BrokerQueryManager::brokerMessageExtractor(
+const broker::message& msg)
 {
+    input_query temp;
+  //  std::string broQuery = broker::to_string(broker::message(msg));
+  //  std::cout<<msg[0]<< ": "<<msg[1]<<std::endl;
+    // will remove [] form start and end of string
+  //  broQuery = broQuery.substr(1,broQuery.size()-2);
+  //  int loc = broQuery.find(',');
     
-    for(int i=0;i<out_query_vector.size();i++)
-    {
-        BrokerQueryManager::diffResultsAndEventTriger(i);
+    //returns the event part
+    temp.event_name = broker::to_string(msg[0]);
+    //returns the query  string
+    temp.query = broker::to_string(msg[1]);
+    temp.flag = (broker::to_string(msg[2]) == "1")?true:false;
+    
+    //will throw an exception if query is not a proper SQL string
+    if(temp.query.substr(0,6)!= "SELECT")
+    {  
+        throw(std::string("Please send Proper formated query"));
     }
-    
+    else
+        return temp;
 }
 
-QueryData BrokerQueryManager::getQueryResult(const std::string& queryString)
+
+
+bool BrokerQueryManager::ReInitializeVectors()
 {
-    QueryData qd;
-    osquery::queryExternal(queryString, qd);
-    
-    return qd;
+    first_time = true;
+    if(!out_query_vector.empty())
+    {
+        out_query_vector.clear();
+    }
+    if(!event.empty())
+    {
+        event.clear();
+    }
+    if(!qc.empty())
+    {
+        qc.clear();
+    }
+    if(!qmap.empty())
+    {
+        qmap.clear();
+    }
+    if(!in_query_vector.empty())
+    {
+        in_query_vector.clear();
+    }
+  return (in_query_vector.empty()) ? true :false;  
 }
+
+
+bool BrokerQueryManager::isQueryColumnInteger(const std::string& str)
+{
+    if (str.empty())
+        return false;
+    // Iterates over all elements of string to check whether all number?
+    return std::all_of(str.begin(),str.end(), ::isdigit);
+}
+
+std::string BrokerQueryManager::getLocalHostIp()
+{
+    //map::iterator to iterator over osquery::Row columns
+    typedef std::map<std::string, std::string>::const_reverse_iterator pt;
+    
+    //Using osquery; queries interface_addresses table
+    QueryData ip_table = 
+            getQueryResult("SELECT address FROM interface_addresses");
+    // loop over each interface Row
+    for(auto& r: ip_table)
+    {
+        for(pt iter = r.rbegin(); iter != r.rend(); iter++)
+        {
+            if((iter->second).size()>9 && (iter->second).size()<16)
+            {
+                return iter->second;
+            }
+        }
+        std::cout<<std::endl;
+    }
+    return "";
+}
+
