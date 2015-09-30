@@ -1,9 +1,9 @@
 This module has been tested with 
 linux: CENTOS7 (3.10.0-229.11.1.el7.x86_64)
 
------------------------------------------------
+-------------------------------------------------------
 ###Step 1: Follow Osquery Extension Guidelines###
------------------------------------------------
+-------------------------------------------------------
 We have developed osquery extension which will enable bro users to subscribe to 
 (single or group) SQL queries remotely and then get the queries updates till the
 broker connection is alive. Once the SQL queries are received form bro then
@@ -14,12 +14,8 @@ otherwise, it will only monitor updates of events and send them to bro.
 Broker is a communication library which is used as a communication module 
 between osquery extension and bro IDS.
   
-----------------------------------------------
 ####1.1 Files Structure:####
-----------------------------------------------
------------------------------------------------------------------------
 #####1.1.1 Following files have been added into the osquery directory:#####
------------------------------------------------------------------------
 *	```osquery/osquery/main/BrokerQueryManager.cpp```
 *	```osquery/osquery/main/BrokerQueryManager.h```
 *	```osquery/osquery/main/BrokerConnectionManager.cpp```
@@ -30,14 +26,10 @@ between osquery extension and bro IDS.
 *	```osquery/osquery/main/utility.h```
 *	```osquery/osquery/main/bro_osquery.cpp```
 
------------------------------------------------------------------------
 #####1.1.2 Following files have been updated into the osquery directory:#####
------------------------------------------------------------------------
 *	osquery/osquery/CMakeLists.txt
 
------------------------------------------------
 ####1.2 Installation Steps: ####
------------------------------------------------
 *	```Install actor framework from github```
 *	```git clone --recursive https://github.com/bro/broker```
 *	```cd broker && ./configure && make && make install```
@@ -46,9 +38,7 @@ between osquery extension and bro IDS.
 *	```make```
 *	```make install```
 
------------------------------------------------
 ####1.3 Application usage guide:####
------------------------------------------------
 *	copy ```broker.ini``` in ```/var/osquery/```
 *	``` cp -rf osquery/build/centos7/osquery/BrokerQueryManagerExtension.ext /usr/lib/osquery/extensions/ ```
 *	create ```/etc/Osquery/extensions.load``` with following content
@@ -72,27 +62,19 @@ This module enables following modes of connections and monitoring:
 *  A master to a remote group of hosts monitoring with a single query subscription
 *  A master to a remote group of hosts monitoring with multiple queries subscription
 
-----------------------------------------------------------------------
 ####2.1 Files Structure:####
-----------------------------------------------------------------------
------------------------------------------------------------------------
 #####2.1.1 Following files have been added into the bro directory:#####
------------------------------------------------------------------------
 *	```bro/src/broker/QueryManager.h```
 *	```bro/src/broker/QueryManager.cpp```
 *	```bro/src/broker/querying .bif```
 
------------------------------------------------------------------------
 #####2.1.2 Following files have been updated into the bro directory:#####
------------------------------------------------------------------------
 *	```bro/scripts/base/framework/broker/main.bro```
 *	```bro/src/broker/Manager.h```
 *	```bro/src/main.cc```
 *	```bro/src/broker/CMakeLists.txt```
 
------------------------------------------------
 ####2.2 Installation steps:####
------------------------------------------------
 *	install actor-framework from github
 *	```git clone --recursive https://github.com/sami2316/bro```
 *	```./configure```
@@ -106,10 +88,8 @@ Note: actor framework version should be the same at both sides (bro and
 ###Step 3: Start Using Monitoring Application###
 ----------------------------------------------
 
--------------------------------------------------------------------------------
 ####3.1 Scenario 1: A master to a single remote host monitoring with a single####
 ####query subscription####
---------------------------------------------------------------------------------
 
 First you need to run osqueryd on both hosts. Then at bro side write the 
 following script to subscribe to a single query. An example script, extracted 
@@ -175,10 +155,8 @@ event removed_acpi_tables(host: string, name: string,size: count,md5: 	string)
 Please refer to singlequerysubscription.bro to have a look at the scripts 
 written to monitor other events.
 
--------------------------------------------------------------------------------
 ####3.2 Scenario 2: A master to a single remote host monitoring with a single####
 ####query subscription####
--------------------------------------------------------------------------------
 An example script for multiple queries subscription, extracted from 
 multiplequerysubscription.bro,
 to monitor ACPI tables is given below:
@@ -237,10 +215,8 @@ Please refer to multiplequerysubscription.bro to have a look at the scripts
 written to monitor other
 events.
 
-----------------------------------------------------------------------------
 ####3.3 Scenario 3: A master to a remote group of hosts monitoring with a single####
 ####query subscription####
------------------------------------------------------------------------------
 An example script for a group of connections and single query subscription,
 to monitor ACPI tables is given below:
 ```
@@ -291,10 +267,8 @@ event BrokerComm::incoming_connection_broken(peer_name: string)
 	terminate();
 }
 ```
------------------------------------------------------------------------------
 ####3.4 Scenario 4: A master to a remote group of hosts monitoring with multiple#### 
 ####queries subscription####
-------------------------------------------------------------------------------
 An example script for a group of connection and multiple queries subscription,
 to monitor ACPI tables is given below:
 ```
