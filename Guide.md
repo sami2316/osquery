@@ -88,8 +88,7 @@ Note: actor framework version should be the same at both sides (bro and
 ###Step 3: Start Using Monitoring Application###
 ----------------------------------------------
 
-####3.1 Scenario 1: A master to a single remote host monitoring with a single####
-####query subscription####
+####3.1 Scenario 1: A master to a single remote host monitoring with a single query subscription####
 
 First you need to run osqueryd on both hosts. Then at bro side write the 
 following script to subscribe to a single query. An example script, extracted 
@@ -155,8 +154,7 @@ event removed_acpi_tables(host: string, name: string,size: count,md5: 	string)
 Please refer to singlequerysubscription.bro to have a look at the scripts 
 written to monitor other events.
 
-####3.2 Scenario 2: A master to a single remote host monitoring with a single####
-####query subscription####
+####3.2 Scenario 2: A master to a single remote host monitoring with a single query subscription####
 An example script for multiple queries subscription, extracted from 
 multiplequerysubscription.bro,
 to monitor ACPI tables is given below:
@@ -215,8 +213,7 @@ Please refer to multiplequerysubscription.bro to have a look at the scripts
 written to monitor other
 events.
 
-####3.3 Scenario 3: A master to a remote group of hosts monitoring with a single####
-####query subscription####
+####3.3 Scenario 3: A master to a remote group of hosts monitoring with a single query subscription####
 An example script for a group of connections and single query subscription,
 to monitor ACPI tables is given below:
 ```
@@ -267,8 +264,7 @@ event BrokerComm::incoming_connection_broken(peer_name: string)
 	terminate();
 }
 ```
-####3.4 Scenario 4: A master to a remote group of hosts monitoring with multiple#### 
-####queries subscription####
+####3.4 Scenario 4: A master to a remote group of hosts monitoring with multiple queries subscription####
 An example script for a group of connection and multiple queries subscription,
 to monitor ACPI tables is given below:
 ```
