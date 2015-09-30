@@ -1,5 +1,6 @@
 /* 
- *  Copyright (c) 2015, nexGIN, RC.
+ *  Copyright (c) 2015, Next Generation Intelligent Networks (nextGIN), RC.
+ *  Institute of Space Technology
  *  All rights reserved.
  * 
  *  This source code is licensed under the BSD-style license found in the
@@ -13,7 +14,7 @@
 
 
 
-BrokerConnectionManager::BrokerConnectionManager(std::string HostName,
+BrokerConnectionManager::BrokerConnectionManager(std::string hostName,
         std::string btp,int bport)
 {
     //initialize broker API
@@ -21,7 +22,7 @@ BrokerConnectionManager::BrokerConnectionManager(std::string HostName,
     this->b_port = bport;
     this->connected = false;
     //local host object
-    this->ptlocalhost = new broker::endpoint(HostName);
+    this->ptlocalhost = new broker::endpoint(hostName);
     // broker messages queue
     this->ptmq = new broker::message_queue(btp,*ptlocalhost);
     // pooling for message queue
@@ -83,7 +84,7 @@ bool BrokerConnectionManager::getAndProcessQuery()
     return temp;
 }
 
-void BrokerConnectionManager::trackChangeAndSendResponseToMaster()
+void BrokerConnectionManager::trackResponseChangesAndSendResponseToMaster()
 {
     qm->queriesUpdateTrackingHandler();
 }
