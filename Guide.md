@@ -104,10 +104,8 @@ const broker_port: port = 9999/tcp &redef;
 redef exit_only_after_terminate = T;
 redef osquery::endpoint_name = "Printer";
 
-global added_acpi_tables: event(host: string, name: string, size: count,
- md5: string);
-global removed_acpi_tables: event(host: string, name: string,size: count,
- md5: string);
+global added_acpi_tables: event(host: string, name: string, size: count, md5: string);
+global removed_acpi_tables: event(host: string, name: string,size: count, md5: string);
 
 
 event bro_init()
