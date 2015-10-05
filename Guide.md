@@ -264,6 +264,16 @@ event BrokerComm::incoming_connection_broken(peer_name: string)
 	print "BrokerComm::incoming_connection_broken", peer_name;
 	terminate();
 }
+event added_acpi_tables(host: string, name: string, size: count, md5: 	string)
+{
+	print "New acpi_table Entry";
+	print fmt("Host = %s Table_name = %s size = %d md5 = %s",host, 	name, size, md5);
+}
+event removed_acpi_tables(host: string, name: string,size: count,md5: 	string)
+{
+	print "Deleted acpi_table Entry";
+	print fmt("Host = %s Table_name = %s size = %d md5 = %s",host, 	name, size, md5);
+}
 ```
 ####3.4 Scenario 4: A master to a remote group of hosts monitoring with multiple queries subscription####
 An example script for a group of connection and multiple queries subscription,
