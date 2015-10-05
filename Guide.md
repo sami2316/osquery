@@ -95,7 +95,7 @@ Note: actor framework version should be the same at both sides (bro and
 
 First you need to run osqueryd on both hosts. Then at bro side write the 
 following script to subscribe to a single query. An example script, extracted 
-from singlequerysubscription.bro, to monitor ACPI tables is given below:
+from singlequerysubscription.bro, to monitor usb_devices is given below:
 
 ```
 module osquery;
@@ -104,8 +104,7 @@ const broker_port: port = 9999/tcp &redef;
 redef exit_only_after_terminate = T;
 redef osquery::endpoint_name = "Printer";
 
-global added_acpi_tables: event(host: string, name: string, size: count, md5: string);
-global removed_acpi_tables: event(host: string, name: string,size: count, md5: string);
+global added_usb_devices: event(host: string, usb_address: count, vendor: string, model: string);
 
 
 event bro_init()
@@ -118,17 +117,17 @@ event bro_init()
 	osquery::connect("192.168.1.90",broker_port, 2sec); 
 }
 
-##if the connection is established then connection_extablished event will
-##be trigered.
+##if the connection is established then connection_extablished event will be trigered.
 event BrokerComm::outgoing_connection_established(peer_address: string, peer_port: port, peer_name: string)
 {
 	print "BrokerComm::outgoing_connection_establisted", 	peer_address, peer_port, peer_name;
 		
-     ##if we are interested in new entries of acpi_tables then write event name as "added_acpi_tables"
-	osquery::subscribe("osquery::added_acpi_tables","SELECT name,size,md5 FROM acpi_tables");
+        ##if we are interested in inserted usb_devices then write event name as "added_usb_devices"
+	osquery::subscribe("osquery::added_usb_devices","SELECT usb_address,vendor,model FROM usb_devices");
+	##if you want an initial dump for the requrest query then set inidumpflag to True
+	##osquery::subscribe("osquery::added_usb_devices","SELECT usb_address,vendor,model FROM usb_devices",T);
 
-    ##if we are interested in removed entries of acpi_tables then write event name as "removed_acpi_tables"
-	osquery::subscribe("osquery::removed_acpi_tables","SELECT name,size,md5 FROM acpi_tables");
+
 }
 
 event BrokerComm::incoming_connection_broken(peer_name: string)
@@ -138,27 +137,19 @@ event BrokerComm::incoming_connection_broken(peer_name: string)
 }
 
 
-event added_acpi_tables(host: string, name: string, size: count, md5: 	string)
+event added_usb_devices(host: string, usb_address: count, vendor: string, model: string)
 {
-	print "New acpi_table Entry";
-	print fmt("Host = %s Table_name = %s size = %d md5 = %s",host, 	name,
-     size, md5);
-}
-event removed_acpi_tables(host: string, name: string,size: count,md5: 	string)
-{
-	print "Deleted acpi_table Entry";
-	print fmt("Host = %s Table_name = %s size = %d md5 = %s",host, 	name,
-     size, md5);
+	print "New Usb Device Added";
+ 	print fmt("Host = %s Usb_address = %d Vendor = %s Model = %s",host, usb_address, vendor, model);
 }
 ```
 
-Please refer to singlequerysubscription.bro to have a look at the scripts 
-written to monitor other events.
+Please refer to singlequerysubscription.bro to write scripts to monitor other events.
 
-####3.2 Scenario 2: A master to a single remote host monitoring with a single query subscription####
-An example script for multiple queries subscription, extracted from 
-multiplequerysubscription.bro,
-to monitor ACPI tables is given below:
+####3.2 Scenario 2: A master to a single remote host monitoring with multiple queries subscription####
+An example script for multiple queries subscription, extracted from multiplequerysubscription.bro,
+to monitor multiple OS events is given below:
+
 ```
 module osquery;
 
@@ -167,7 +158,8 @@ redef exit_only_after_terminate = T;
 redef osquery::endpoint_name = "Printer";
 
 global added_acpi_tables: event(host: string, name: string, size: count, md5: string);
-global removed_acpi_tables: event(host: string, name: string,size: count, md5: string);
+global added_usb_devices: event(host: string, usb_address: count, vendor: string, model: string);
+global added_users: event(host: string, username: string, uid: count, gid: count);
 
 global query: table[string] of string;
 
@@ -181,15 +173,17 @@ event bro_init()
 	osquery::connect("192.168.1.90",broker_port, 2sec); 
 
         query["osquery::added_acpi_tables"] = "SELECT name,size,md5 FROM acpi_tables";
-	query["osquery::removed_acpi_tables"] = "SELECT name,size,md5 FROM acpi_tables";
+	query["osquery::added_usb_devices"] =  "SELECT usb_address,vendor,model FROM usb_devices";
+	query["osquery::added_users"] =  "SELECT username,uid,gid FROM users";
 }
 
 ##if the connection is established then connection_extablished event will be trigered.
 event BrokerComm::outgoing_connection_established(peer_address: string, peer_port: port, peer_name: string)
 {
 	print "BrokerComm::outgoing_connection_establisted", peer_address, peer_port, peer_name;
-	osquery::groupsubscribe("/bro/event/group1",query);
-
+	osquery::groupsubscribe("/bro/event/",query);
+	##if you want an initial dump for the requrest query then set inidumpflag to True
+	##osquery::groupsubscribe("/bro/event/",query,T);
 }
 
 event BrokerComm::incoming_connection_broken(peer_name: string)
@@ -204,19 +198,25 @@ event added_acpi_tables(host: string, name: string, size: count, md5: 	string)
 	print "New acpi_table Entry";
 	print fmt("Host = %s Table_name = %s size = %d md5 = %s",host, 	name, size, md5);
 }
-event removed_acpi_tables(host: string, name: string,size: count,md5: 	string)
+event added_usb_devices(host: string, usb_address: count, vendor: string, model: string)
 {
-	print "Deleted acpi_table Entry";
-	print fmt("Host = %s Table_name = %s size = %d md5 = %s",host, 	name, size, md5);
+	print "New Usb Device Added";
+ 	print fmt("Host = %s Usb_address = %d Vendor = %s Model = %s",host, usb_address, vendor, model);
+}
+event added_users(host: string, username: string, uid: count, gid: count)
+{
+	print "New User Added";
+ 	print fmt("Host = %s UserName = %s UID = %d GID = %d",host, username, uid, gid);
 }
 ```
-Please refer to multiplequerysubscription.bro to have a look at the scripts 
-written to monitor other
+Please refer to multiplequerysubscription.bro to have a look at the scripts written to monitor other
 events.
 
 ####3.3 Scenario 3: A master to a remote group of hosts monitoring with a single query subscription####
+Make sure the broker.ini at each osquery host in a group has the same broker_topic. In our example, we are using 
+"broker_topic=/bro/event/group1"
 An example script for a group of connections and single query subscription,
-to monitor ACPI tables is given below:
+to monitor usb_devices is given below:
 ```
 module osquery;
 
@@ -224,8 +224,7 @@ const broker_port: port = 9999/tcp &redef;
 redef exit_only_after_terminate = T;
 redef osquery::endpoint_name = "Printer";
 
-global added_acpi_tables: event(host: string, name: string, size: count, md5: string);
-global removed_acpi_tables: event(host: string, name: string,size: count, md5: string);
+global added_usb_devices: event(host: string, usb_address: count, vendor: string, model: string);
 
 global gconn: table[string] of string;
 
@@ -252,11 +251,9 @@ event BrokerComm::outgoing_connection_established(peer_address: string, peer_por
 	print "BrokerComm::outgoing_connection_establisted", 	peer_address, 
         peer_port, peer_name;
 
-	##if we are interested in new entries of acpi_tables then write event name as "added_acpi_tables"
-	osquery::subscribe("osquery::added_acpi_tables","SELECT name,size,md5 FROM acpi_tables");
-
-	##if we are interested in removed entries of acpi_tables then write event name as "removed_acpi_tables"
-	osquery::subscribe("osquery::removed_acpi_tables","SELECT name,size,md5 FROM acpi_tables");
+	##if we are interested in inserted usb_devices then write event name as "added_usb_devices"
+	osquery::subscribe("osquery::added_usb_devices","SELECT usb_address,vendor,model FROM 
+	usb_devices","/bro/event/group1");
 }
 
 event BrokerComm::incoming_connection_broken(peer_name: string)
@@ -264,20 +261,36 @@ event BrokerComm::incoming_connection_broken(peer_name: string)
 	print "BrokerComm::incoming_connection_broken", peer_name;
 	terminate();
 }
-event added_acpi_tables(host: string, name: string, size: count, md5: 	string)
+
+event added_usb_devices(host: string, usb_address: count, vendor: string, model: string)
 {
-	print "New acpi_table Entry";
-	print fmt("Host = %s Table_name = %s size = %d md5 = %s",host, 	name, size, md5);
-}
-event removed_acpi_tables(host: string, name: string,size: count,md5: 	string)
-{
-	print "Deleted acpi_table Entry";
-	print fmt("Host = %s Table_name = %s size = %d md5 = %s",host, 	name, size, md5);
+	print "New Usb Device Added";
+ 	print fmt("Host = %s Usb_address = %d Vendor = %s Model = %s",host, usb_address, vendor, model);
 }
 ```
+For multiple groups, you need to change the broker.ini at each osquery host to make it a part of specific group. For example, if there are three hosts and we wana make three groups, simply update broker.ini on each host with different 
+broker_topic "/bro/event/group1", "/bro/event/group2", "/bro/event/group3" respectively.
+Then subscribe different queries on each host in BrokerComm::outgoing_connection_established event body.
+
+```
+event BrokerComm::outgoing_connection_established(peer_address: string, peer_port: port, peer_name: string)
+{
+	print "BrokerComm::outgoing_connection_establisted", 	peer_address, 
+        peer_port, peer_name;
+
+	osquery::subscribe("osquery::added_usb_devices","SELECT usb_address,vendor,model FROM 
+	usb_devices","/bro/event/group1");
+	osquery::subscribe("osquery::added_users","SELECT username,uid,gid FROM users", "/bro/event/group2");
+	osquery::subscribe("osquery::added_acpi_tables","SELECT name,size,md5 FROM acpi_tables", "/bro/event/group3");
+}
+```
+
 ####3.4 Scenario 4: A master to a remote group of hosts monitoring with multiple queries subscription####
+Make sure the broker.ini at each osquery host in a group has the same broker_topic. In our example, we are using 
+"broker_topic=/bro/event/group1"
 An example script for a group of connection and multiple queries subscription,
-to monitor ACPI tables is given below:
+to monitor multiple OS events is given below:
+
 ```
 module osquery;
 
@@ -286,7 +299,8 @@ redef exit_only_after_terminate = T;
 redef osquery::endpoint_name = "Printer";
 
 global added_acpi_tables: event(host: string, name: string, size: count, md5: string);
-global removed_acpi_tables: event(host: string, name: string,size: count, md5: string);
+global added_usb_devices: event(host: string, usb_address: count, vendor: string, model: string);
+global added_users: event(host: string, username: string, uid: count, gid: count);
 
 global query: table[string] of string;
 global gconn: table[string] of string;
@@ -308,7 +322,8 @@ event bro_init()
  	osquery::groupconnect(gconn, 2sec);
 
 	query["osquery::added_acpi_tables"] = "SELECT name,size,md5 FROM acpi_tables";
-	query["osquery::removed_acpi_tables"] = "SELECT name,size,md5 FROM acpi_tables";
+	query["osquery::added_usb_devices"] =  "SELECT usb_address,vendor,model FROM usb_devices";
+	query["osquery::added_users"] =  "SELECT username,uid,gid FROM users";
 }   
 
 ##if the connection is established then connection_extablished event will be trigered.
@@ -331,9 +346,27 @@ event added_acpi_tables(host: string, name: string, size: count, md5: 	string)
 	print "New acpi_table Entry";
 	print fmt("Host = %s Table_name = %s size = %d md5 = %s",host, 	name, size, md5);
 }
-event removed_acpi_tables(host: string, name: string,size: count,md5: 	string)
+event added_usb_devices(host: string, usb_address: count, vendor: string, model: string)
 {
-	print "Deleted acpi_table Entry";
-	print fmt("Host = %s Table_name = %s size = %d md5 = %s",host, 	name, size, md5);
+	print "New Usb Device Added";
+ 	print fmt("Host = %s Usb_address = %d Vendor = %s Model = %s",host, usb_address, vendor, model);
 }
+event added_users(host: string, username: string, uid: count, gid: count)
+{
+	print "New User Added";
+ 	print fmt("Host = %s UserName = %s UID = %d GID = %d",host, username, uid, gid);
+}
+```
+
+For multiple groups, you need to change the broker.ini at each osquery host to make it a part of specific group. For example, if there are three hosts and we wana make three groups, simply update broker.ini on each host with different 
+broker_topic "/bro/event/group1", "/bro/event/group2", "/bro/event/group3" respectively.
+And also define three different query tables e.g. query1, query2, query3, respectively.
+Then subscribe different group of queries on each group in BrokerComm::outgoing_connection_established event body.
+```
+event BrokerComm::outgoing_connection_established(peer_address: string, peer_port: port, peer_name: string)
+{
+	print "BrokerComm::outgoing_connection_establisted", 	peer_address, peer_port, peer_name;
+	osquery::groupsubscribe("/bro/event/group1",query1);
+	osquery::groupsubscribe("/bro/event/group2",query2);
+	osquery::groupsubscribe("/bro/event/group3",query3);
 ```
