@@ -1,5 +1,6 @@
 This module has been tested with 
 linux: CENTOS7 (3.10.0-229.11.1.el7.x86_64)
+Note: actor framework version should be the same at both sides (bro and osquery side)
 
 ```singlequerysubscription.bro ``` and ```multiplequerysubscription.bro``` are the sample script files
 which are in https://github.com/sami2316/osquery directory.
